@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lykkehjul – tilføj egne ord</title>
+  <style>
+    :root{
+      --bg:#0b1020;--panel:#141b34;--ink:#e9ecf1;--muted:#a7b0c3;--accent:#5eead4;--red:#ff6b6b;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b1020,#0e1530);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;color:var(--ink);display:grid;place-items:center}
+    .app{width:min(980px,95vw);padding:20px}
+    header{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:14px}
+    h1{font-size:clamp(18px,3vw,24px);margin:0;font-weight:700;letter-spacing:.3px}
+    .hint{color:var(--muted);font-size:14px}
+    .guide{background:#1a2350;border:1px solid #2a356e;border-radius:12px;padding:12px;font-size:14px;line-height:1.4;color:var(--muted)}
+    .wrap{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}
+    @media (max-width:600px){.wrap{grid-template-columns:1fr;}
+    .controls{flex-wrap:wrap;gap:6px}
+    .controls input[type="text"]{flex:1 1 100%}
+    .controls button{flex:1 1 calc(50% - 6px);padding:10px;font-size:14px}
+    #spinBtn{flex:1 1 100%;font-size:16px;padding:12px}}
+
+                      
+
+
+    .panel{background:var(--panel);border:1px solid #1d254a;border-radius:18px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .panel-right {display: flex;flex-direction: column;height: 100%;}
+    .panel-right .footer-actions {margin-top: auto;display: flex;gap: 10px;justify-content: center;}
+
+    .controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    input[type="text"]{flex:1;min-width:160px;background:#0f1530;border:1px solid #27305d;color:var(--ink);border-radius:12px;padding:12px}
+    button{background:#1a2350;color:var(--ink);border:1px solid #2a356e;border-radius:12px;padding:10px 14px;font-weight:600;cursor:pointer}
+    button:hover{filter:brightness(1.1)}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .btn-accent{background:#123c50;border-color:#175a6a}
+    .btn-danger{background:#411a1a;border-color:#6a2a2a}
+
+    .stage{position:relative;display:grid;place-items:center;padding:8px}
+    canvas{width:100%;max-width:600px;aspect-ratio:1;border-radius:50%;display:block;background:#0d1330}
+    .pin {position:absolute;top:5px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-top:24px solid var(--accent);filter:drop-shadow(0 4px 10px rgba(0,0,0,.5));}
+
+    .readout{margin-top:10px;text-align:center;color:var(--muted)}
+    .result{font-size:clamp(18px,4vw,28px);text-align:center;margin:8px 0 0}
+
+    .list{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow:auto;padding-right:4px}
+    .chip{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#0f1530;border:1px solid #243062;border-radius:12px;padding:10px}
+    .chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .chip small{color:var(--muted)}
+
+    .footer{margin-top:14px;color:var(--muted);font-size:13px;text-align:center}
+  
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-box {
+  background: var(--panel);
+  border: 1px solid #2a356e;
+  border-radius: 12px;
+  padding: 20px;
+  color: var(--ink);
+  min-width: 240px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  text-align: center;
+}
+
+.modal-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.modal-actions button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+#confirmYes {
+  background: var(--accent);
+  color: #000;
+}
+
+#confirmNo {
+  background: #1a2350;
+  color: var(--ink);
+}
+
+/* --- Confetti effect --- */
+.confetti {
+  position: fixed;
+  top: -10px;
+  width: 10px;
+  height: 10px;
+  background: red;
+  opacity: 0.8;
+  border-radius: 50%;
+  animation: fall linear forwards;
+  z-index: 2000;
+}
+@keyframes fall {
+  to {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+/* --- Flash effect --- */
+.flash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1500;
+  animation: flashAnim 0.8s ease-out forwards;
+}
+@keyframes flashAnim {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🎯 Lykkehjul – skriv dine egne ord</h1>
+      <div class="hint">Tilføj ord → tryk <em>SPIN</em> → hjulet vælger for dig</div>
+      <div class="guide">
+        <strong>Sådan gør du:</strong>
+        <ol style="margin:6px 0 0 20px;padding:0">
+          <li>Skriv et ord i feltet og tryk <em>Tilføj</em> eller Enter.</li>
+          <li>Tilføj mindst 2 ord, før du kan spinne.</li>
+          <li>Du kan maks. tilføje 7 ord til hjulet.</li>
+          <li>Klik på <em>🎡 SPIN</em> – pilen øverst peger på vinderen.</li>
+        </ol>
+      </div>
+    </header>
+
+    <div class="wrap">
+      <section class="panel">
+        <div class="stage">
+          <div class="pin" aria-hidden="true"></div>
+          <canvas id="wheel" width="700" height="700" aria-label="Lykkehjul" role="img"></canvas>
+        </div>
+        <p class="readout" id="count">0 felter</p>
+        <div class="controls">
+          <input id="itemInput" type="text" placeholder="Skriv et ord og tryk Enter…" />
+          <button id="addBtn" title="Tilføj">Tilføj</button>
+          <button id="spinBtn" class="btn-accent" title="Spind" disabled>Spin</button>
+          <button id="shuffleBtn" title="Bland farver">Bland farver</button>
+          <button id="resetBtn" class="btn-danger" title="Ryd alt">Ryd</button>
+        </div>
+      </section>
+
+    <aside class="panel panel-right">
+      <h3 style="margin:0 0 10px">Dine felter</h3>
+      <div class="list" id="list"></div>
+      <div class="footer">
+        Tip: dine ord gemmes lokalt i denne browser (localStorage).
+      </div>
+
+      <div class="footer-actions">
+        <button id="exportBtn" title="Gem til fil">Gem til fil</button>
+        <button id="importBtn" title="Importér fra fil">Importér fra fil</button>
+      </div>
+    </aside>
+
+<div id="confirmModal" class="modal hidden">
+  <div class="modal-box">
+    <p>Ryd alle felter?</p>
+    <div class="modal-actions">
+      <button id="confirmYes">OK</button>
+      <button id="confirmNo">Annuller</button>
+    </div>
+  </div>
+</div>
+
+<div id="alertModal" class="modal hidden">
+  <div class="modal-box">
+    <p id="alertText">Besked</p>
+    <div class="modal-actions">
+      <button id="alertRemove" class="btn-danger">Fjern</button>
+      <button id="alertOk">OK</button>
+    </div>
+  </div>
+</div>
+</body>
+<p id="result" class="result" style="text-align:center; margin-top:10px;"></p>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const $ = sel => document.querySelector(sel);
+    const rand = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+    const nicePalette = [
+      '#8b5cf6','#22d3ee','#f59e0b','#10b981','#ef4444','#3b82f6','#f472b6','#84cc16','#fb923c','#14b8a6','#a855f7','#eab308'
+    ];
+
+    function launchConfetti() {
+      for (let i = 0; i < 40; i++) {
+        const c = document.createElement('div');
+        c.className = 'confetti';
+        c.style.left = Math.random() * 100 + 'vw';
+        c.style.background = `hsl(${Math.random()*360}, 100%, 50%)`;
+        c.style.animationDuration = 2 + Math.random()*2 + 's';
+        document.body.appendChild(c);
+        setTimeout(() => c.remove(), 4000);
+      }
+    }
+
+    function flashEffect() {
+      const flash = document.createElement('div');
+      flash.className = 'flash';
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 800);
+    }
+
+    function resizeCanvas(canvas){
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.width * dpr);
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      return ctx;
+    }
+
+    const LS_KEY = 'lykkehjul_items_v1';
+    let items = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+    let colors = [];
+    let rotation = 0;
+    let spinning = false;
+
+    const canvas = $('#wheel');
+    const ctx = canvas.getContext('2d');
+    const listEl = $('#list');
+    const resultEl = $('#result');
+    const countEl = $('#count');
+    const inputEl = $('#itemInput');
+    const spinBtn = $('#spinBtn');
+
+    function ensureColors(){
+      while(colors.length < items.length){
+        colors.push(nicePalette[colors.length % nicePalette.length]);
+      }
+      if(colors.length > items.length) colors.length = items.length;
+    }
+
+    function save(){ localStorage.setItem(LS_KEY, JSON.stringify(items)); }
+
+    function updateUI(){
+      ensureColors();
+      buildList();
+      draw();
+      countEl.textContent = `${items.length} ${items.length===1?'felt':'felter'}`;
+      spinBtn.disabled = items.length < 2 || spinning;
+    }
+
+    function buildList(){
+      listEl.innerHTML = '';
+      items.forEach((txt, i)=>{
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `<span><small style="color:${colors[i]}">■</small> ${escapeHtml(txt)}</span>
+          <div style="display:flex;gap:6px">
+            <button title="Op" aria-label="Flyt op">↑</button>
+            <button title="Ned" aria-label="Flyt ned">↓</button>
+            <button class="btn-danger" title="Fjern" aria-label="Fjern">Slet</button>
+          </div>`;
+        const [up,down,del] = chip.querySelectorAll('button');
+        up.onclick = ()=>{ if(i>0){ [items[i-1],items[i]]=[items[i],items[i-1]]; save(); updateUI(); } };
+        down.onclick = ()=>{ if(i<items.length-1){ [items[i+1],items[i]]=[items[i],items[i+1]]; save(); updateUI(); } };
+        del.onclick = ()=>{ items.splice(i,1); save(); updateUI(); };
+        listEl.appendChild(chip);
+      });
+    }
+
+    function escapeHtml(s){
+      return s.replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+    }
+
+    function draw(){
+      const ctx2 = resizeCanvas(canvas);
+      const w = canvas.clientWidth;
+      const r = w/2 - 8;
+      ctx2.clearRect(0,0,canvas.width,canvas.height);
+      ctx2.save();
+      ctx2.translate(w/2, w/2);
+      ctx2.rotate(rotation - Math.PI/2);
+
+      if(items.length===0){
+        ctx2.beginPath();
+        ctx2.arc(0,0,r,0,Math.PI*2);
+        ctx2.fillStyle = '#0f1530';
+        ctx2.fill();
+        ctx2.lineWidth = 6; ctx2.strokeStyle = '#23306a'; ctx2.stroke();
+      }
+
+      const slice = items.length ? (Math.PI*2/items.length) : 0;
+      items.forEach((text,i)=>{
+        const start = i*slice;
+        const end = start + slice;
+        ctx2.beginPath();
+        ctx2.moveTo(0,0);
+        ctx2.arc(0,0,r,start,end);
+        ctx2.closePath();
+        ctx2.fillStyle = colors[i] || '#3b82f6';
+        ctx2.fill();
+        ctx2.lineWidth = 1.25; ctx2.strokeStyle = 'rgba(0,0,0,.35)'; ctx2.stroke();
+
+        const mid = start + slice/2;
+        ctx2.save();
+        ctx2.rotate(mid);
+        ctx2.textAlign = 'right';
+        ctx2.fillStyle = '#0b1020';
+        ctx2.font = `${Math.max(12, Math.min(24, r*0.07))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+        const maxW = r*0.86;
+        const label = truncate(text, ctx2, maxW);
+        ctx2.fillText(label, r-10, 6);
+        ctx2.restore();
+      });
+
+      ctx2.beginPath();
+      ctx2.arc(0,0, Math.max(16, w*0.04), 0, Math.PI*2);
+      ctx2.fillStyle = '#0b1020';
+      ctx2.fill();
+      ctx2.lineWidth = 4; ctx2.strokeStyle = '#23306a'; ctx2.stroke();
+      ctx2.restore();
+    }
+
+    function truncate(text, ctx, maxWidth){
+      if(ctx.measureText(text).width <= maxWidth) return text;
+      let lo=0, hi=text.length, ans='';
+      while(lo<=hi){
+        const mid=Math.floor((lo+hi)/2);
+        const t = text.slice(0,mid) + '…';
+        if(ctx.measureText(t).width <= maxWidth){ ans=t; lo=mid+1; } else { hi=mid-1; }
+      }
+      return ans || text;
+    }
+
+    function spin(){
+      if(spinning || items.length < 2) return;
+      spinning = true; spinBtn.disabled = true; resultEl.textContent = '';
+      let angularVelocity = 10 + Math.random()*6;
+      const friction = 0.985 + Math.random()*0.007;
+      const stopThreshold = 0.02;
+
+      function frame(){
+        rotation += angularVelocity * (1/60);
+        rotation = ((rotation % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+        draw();
+        angularVelocity *= friction;
+
+        if(angularVelocity > stopThreshold){
+          requestAnimationFrame(frame);
+        }else{
+          spinning = false; spinBtn.disabled = items.length < 2;
+          rotation += (Math.random()-0.5) * 0.003;
+          rotation = ((rotation % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+
+          const winner = indexAtPointer();
+          const chosenItem = items[winner];
+
+          window.lastWinnerIndex = winner;
+          showAlert(`Valgt: ${chosenItem}`, true);
+          launchConfetti();
+          flashEffect();
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function indexAtPointer() {
+      if (items.length === 0) return -1;
+      const n = items.length;
+      const slice = (Math.PI * 2) / n;
+      let angle = (2 * Math.PI - rotation) % (2 * Math.PI);
+      const index = Math.floor(angle / slice);
+      return index;
+    }
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const data = JSON.stringify(items, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'lykkehjul-data.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+const fileInput = document.createElement('input');
+fileInput.type = 'file';
+fileInput.accept = 'application/json';
+fileInput.style.display = 'none';
+document.body.appendChild(fileInput);
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  fileInput.click();
+});
+
+fileInput.addEventListener('change', (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const importedItems = JSON.parse(e.target.result);
+      if (Array.isArray(importedItems)) {
+        items = importedItems;
+        save();
+        updateUI();
+        showAlert('Data importeret!');
+      } else {
+        showAlert('Filen indeholder ikke gyldige data.');
+      }
+    } catch {
+      showAlert('Kunne ikke læse filen.');
+    }
+  };
+  reader.readAsText(file);
+});
+
+function showAlert(message, allowRemove = false) {
+  $('#alertText').textContent = message;
+
+  if (allowRemove) {
+    $('#alertRemove').style.display = 'inline-block';  // Vis Fjern
+  } else {
+    $('#alertRemove').style.display = 'none';          // Skjul Fjern
+  }
+
+  $('#alertModal').classList.remove('hidden');
+}
+
+
+$('#alertRemove').onclick = () => {
+  if (window.lastWinnerIndex !== undefined) {
+    items.splice(window.lastWinnerIndex, 1);
+    colors.splice(window.lastWinnerIndex, 1);
+    save();
+    updateUI();
+    window.lastWinnerIndex = undefined;
+  }
+  $('#alertModal').classList.add('hidden');
+};
+
+$('#alertOk').onclick = () => {
+  window.lastWinnerIndex = undefined;
+  $('#alertModal').classList.add('hidden');
+};
+
+$('#addBtn').onclick = addFromInput;
+$('#spinBtn').onclick = spin;
+$('#shuffleBtn').onclick = ()=>{ shuffleColors(items.length); draw(); };
+$('#resetBtn').onclick = ()=>{ $('#confirmModal').classList.remove('hidden'); };
+
+$('#confirmYes').onclick = ()=>{
+  items = [];
+  colors = [];
+  save();
+  updateUI();
+  $('#confirmModal').classList.add('hidden');
+};
+$('#confirmNo').onclick = ()=>{ $('#confirmModal').classList.add('hidden'); };
+
+inputEl.addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ addFromInput(); }
+});
+
+function addFromInput(){
+  const txt = inputEl.value.trim();
+  if(!txt) return;
+  if(items.length >= 7){
+    showAlert('Du kan maks. have 7 felter på hjulet.');
+    return;
+  }
+  if(items.includes(txt)){
+    showAlert('Det ord findes allerede.');
+    return;
+  }
+  items.push(txt);
+  save();
+  inputEl.value='';
+  updateUI();
+}
+
+function shuffleColors(n){
+  const base = [...nicePalette];
+  const out = [];
+  for(let i=0;i<n;i++) out.push(base[i % base.length]);
+  for(let i=out.length-1;i>0;i--){
+    const j=rand(0,i);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  colors = out;
+  return out;
+}
+
+updateUI();
+window.addEventListener('resize', draw);
+});
+</script>
+</html>
