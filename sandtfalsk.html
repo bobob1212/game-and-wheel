@@ -127,6 +127,7 @@
     let playerName = null;
     let currentTurn = null;
     let roundData = {};
+    let gameCountdownTimer = null;
 
     const MAX_PLAYERS = 6;
     const DEFAULT_ROUNDS = 3;
@@ -248,23 +249,31 @@
       onValue(ref(db, "games/" + gameId), snapshot => {
         const game = snapshot.val();
         if (!game) return;
+
         const players = game.players || {};
         let list = "Spillere i lobby:<br>";
         let allReady = true;
+
+        // 🔹 Lav spillere-liste og tjek hvem der er klar
         for (const pid in players) {
           const p = players[pid];
           list += p.name + (p.ready ? " ✅" : " ❌") + "<br>";
           if (!p.ready) allReady = false;
         }
+
         document.getElementById("playerList").innerHTML = list;
 
-        // kræver mindst 2 spillere
-        if (allReady && game.status === "venter" && Object.keys(players).length >= 2) {
-          update(ref(db, "games/" + gameId), { status: "spiller" });
-          startTruthGame();
+        // 🔹 Start spillet automatisk når alle er klar og der er mindst 2 spillere
+        const playerCount = Object.keys(players).length;
+        if (allReady && game.status === "venter" && playerCount >= 2) {
+          // Sikrer at kun én klient starter spillet
+          if (!game.statusLocked) {
+            update(ref(db, "games/" + gameId), { status: "spiller", statusLocked: true });
+            startTruthGame();
+          }
         }
 
-        // === Opdater "Klar"-knappen automatisk ===
+        // 🔹 Opdater "Klar"-knappen visuelt
         const me = game.players?.[playerId];
         const readyBtn = document.getElementById("readyBtn");
         if (me && readyBtn) {
@@ -275,21 +284,27 @@
           }
         }
 
-        // 🔹 Viser hvor mange spillere der er ud af max 
-        const count = Object.keys(players).length;
-        document.getElementById("playerCount").innerText = "Spillere: " + count + " / " + MAX_PLAYERS;
+        // 🔹 Opdater hvor mange spillere der er i lobbyen
+        document.getElementById("playerCount").innerText =
+          "Spillere: " + playerCount + " / " + MAX_PLAYERS;
       });
     }
     window.changeName = function () {
       let newName = document.getElementById("newName").value.trim();
-      if (!newName) return; // hvis feltet er tomt, sker der bare ingenting
+      if (!newName) return; 
       update(ref(db, "games/" + gameId + "/players/" + playerId), { name: newName });
       playerName = newName;
     };
     window.setReady = function () {
-      update(ref(db, "games/" + gameId + "/players/" + playerId), { ready: true });
-      document.getElementById("readyBtn").classList.add("ready-active");
-    }
+      const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
+
+     
+      get(playerRef).then(snapshot => {
+        const player = snapshot.val();
+        if (!player) return;
+        update(playerRef, { ready: !player.ready }); 
+      });
+    };
 
 
     // === POPUPS ===
@@ -321,7 +336,7 @@
         if (!game) return;
 
         if (game.roundCount !== undefined) {
-          let totalRounds = DEFAULT_ROUNDS; // 🔹 altid brug global værdi
+          let totalRounds = DEFAULT_ROUNDS; 
           document.getElementById("roundStatus").innerText =
             "Runde " + (game.roundCount + 1) + " af " + totalRounds;
         }
