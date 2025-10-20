@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <title>Sandt eller Falsk - Multiplayer</title>
+  <style>
+/* === Base layout === */ body{ font-family:Arial,sans-serif;text-align:center;background:#1e293b;color:#f1f5f9;margin:0;padding:0;}
+/* === Skjulte sektioner === */ #lobby,#truthGame,#popup,#winnerScreen{display:none;}  
+/* === Knapper === */ button{margin:10px;padding:10px 20px;}  .same-size {width:170px; height:34px; border:1px solid #ccc; border-radius:6px; background:white; color:#0f172a; font-size:15px; text-align:center; box-sizing:border-box; margin:10px; padding:6px 14px; cursor:pointer; transition:all 0.2s ease;}
+/* === Tekstfelter === */ textarea{width:30%;height:60px;border-radius:6px;padding:10px;font-size:15px;font-weight:500;resize:none;display:block;margin:0 auto;}
+/* === Popup overlay === */ #popup{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);justify-content:center;align-items:center;z-index:1000;}  
+/* === Popup indhold === */ #popupContent{background:#1e293b;padding:20px;border-radius:10px;min-width:250px;text-align:center;box-shadow:0 0 15px rgba(0,0,0,0.5);}  
+/* === guide === */ #guide{max-width:400px;margin:20px auto;padding:10px;font-size:14px;line-height:1.5;color:#e2e8f0;text-align:left;border:1px solid #334155;border-radius:6px;background:#1e293b;} #guide p:first-child {text-align:center;}
+/* === Telefonvenlig styling === */ @media(max-width:600px){h1{font-size:22px;}h2{font-size:18px;}textarea{width:80%;height:60px;font-size:14px}button{width:90%;max-width:300px;}#guide{max-width:90%;padding:15px;font-size:14px;line-height:1.4;text-align:left;}}
+/* === ready === */.ready-active {background:#16a34a; color:white; border-color:#15803d;} 
+</style>
+</head>
+<body>
+  <h1>Sandt eller Falsk</h1>
+
+  <!-- Start -->
+  <div id="start">
+    <!-- Guide-tekst -->
+    <div id="guide">
+      <p style="text-align:center;"><b>Sådan kommer du i gang:</b></p>
+    <ol>
+      <li>Klik på <b>Opret spil</b> for at starte en ny session.</li>
+      <li>Når spillet er oprettet, modtager du en <b>4-cifret kode</b>, som kan deles med de øvrige deltagere.</li>
+      <li>Deltagerne indtaster koden i feltet og vælger <b>Join spil</b> for at tilslutte sig.</li>
+    </ol>
+    </div>
+  
+    <br><br>
+
+    <button class="same-size" onclick="createGame()">Opret spil</button>
+    <button class="same-size" onclick="joinGame()">Join spil</button>
+    <input class="same-size" type="text" id="joinCode" placeholder="Indtast kode" autocomplete="off">
+  </div>
+
+  <!-- Lobby -->
+  <div id="lobby">
+    <h2>Lobby</h2>
+    <p>Din kode: <span id="gameCode"></span></p>
+    <button class="same-size" onclick="changeName()">Skift navn</button>
+    <input class="same-size" type="text" id="newName" placeholder="Navn (15 tegn max)" maxlength="15" autocomplete="off">
+
+    <p id="playerCount"></p>
+    <p id="playerList"></p>
+
+    <button id="readyBtn" class="same-size" onclick="setReady()">Klar</button>
+    <button class="same-size" onclick="leaveGame()">Log ud</button>
+  </div>
+
+  <!-- Spillet -->
+  <div id="truthGame">
+    <p id="roundStatus"></p>
+
+  <!-- Min tur -->
+  <div id="myTurn" style="display:none;">
+     <p>Skriv en kort historie:</p>
+    <textarea id="storyInput"></textarea><br><br>
+    <label>Er den sand eller falsk?</label>
+    <select id="truthSelect" autocomplete="off">
+      <option value="true">Sand</option>
+      <option value="false">Falsk</option>
+    </select><br><br>
+    <button class="same-size" onclick="submitStory()">Send videre</button>
+  </div>
+
+  <!-- Vent -->
+    <div id="waitTurn" style="display:none;">
+    <p id="waitMessage">⏳ Vent til du kan svare...</p>
+  </div>
+
+  <!-- Gæt -->
+  <div id="guessTurn" style="display:none;">
+    <p id="storyText"></p>
+    <button class="same-size" onclick="submitGuess(true)">Sandt</button>
+    <button class="same-size" onclick="submitGuess(false)">Falsk</button>
+  </div>
+
+  <!-- Resultat -->
+    <div id="roundResult" style="display:none;">
+    <p id="resultText"></p>
+  </div>
+
+  <!-- Score -->
+    <div id="truthScoreboard"></div>
+    <button class="same-size" onclick="leaveGame()">Log ud</button>
+  </div>
+
+  <!-- Vinder -->
+  <div id="winnerScreen">
+    <h2 id="winnerText"></h2>
+    <button class="same-size" onclick="leaveGame()">Tilbage til start</button>
+  </div>
+
+  <!-- Popup -->
+  <div id="popup">
+    <div id="popupContent">
+      <p id="popupMessage"></p>
+      <button class="same-size" onclick="closePopup()">OK</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, set, update, onValue, onDisconnect, remove, get } 
+    from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBuu1C3zEeUOkOY4670A0CWI0Rz2vmAeRY",
+      authDomain: "true--and-false.firebaseapp.com",
+      databaseURL: "https://true--and-false-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "true--and-false",
+      storageBucket: "true--and-false.firebasestorage.app",
+      messagingSenderId: "508688027891",
+      appId: "1:508688027891:web:3bdd26ed6cccf7a3576786"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let gameId = null;
+    let playerId = null;
+    let playerName = null;
+    let currentTurn = null;
+    let roundData = {};
+    let gameCountdownTimer = null;
+
+    const MAX_PLAYERS = 6;
+    const DEFAULT_ROUNDS = 3;
+    
+    const NEXT_ROUND_DELAY = 5;
+
+    // === GRUNDLÆGGENDE FUNKTIONER ===
+    function resetGameFields() {
+      document.getElementById("joinCode").value = "";
+      document.getElementById("newName").value = "";
+      document.getElementById("storyInput").value = "";
+      document.getElementById("truthSelect").value = "true"; // standard = Sand
+    }
+    function autoDeleteGameWhenEmpty() {
+      const playersRef = ref(db, "games/" + gameId + "/players");
+      onValue(playersRef, snapshot => {
+        if (!snapshot.val()) {
+          remove(ref(db, "games/" + gameId));
+        }
+      });
+    }
+    window.addEventListener("beforeunload", function() {
+      if (gameId && playerId) {
+        remove(ref(db, "games/" + gameId + "/players/" + playerId));
+      }
+    });
+
+
+    // === SPIL-ADMINISTRATION ===
+    window.createGame = function () {
+      gameId = Math.floor(1000 + Math.random() * 9000);
+      playerId = "p" + Date.now();
+      playerName = "Spiller 1";
+      set(ref(db, "games/" + gameId), {
+        status: "venter",
+        roundCount: 0,
+        host: playerId, // 🔹 gem hvem der er host
+        players: {
+          [playerId]: { name: playerName, ready: false, score: 0 }
+        }
+      });
+      const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
+      onDisconnect(playerRef).remove();
+      document.getElementById("start").style.display = "none";
+      document.getElementById("lobby").style.display = "block";
+      document.getElementById("gameCode").innerText = gameId;
+      listenLobby();
+      autoDeleteGameWhenEmpty();
+      resetGameFields(); 
+    }
+    window.joinGame = function () {
+      gameId = document.getElementById("joinCode").value;
+      if (!gameId) return showPopup("Indtast en kode!");
+
+      onValue(ref(db, "games/" + gameId), snapshot => {
+        if (!snapshot.exists()) {
+          showPopup("Denne kode findes ikke!");
+          gameId = null;
+          return;
+        }
+
+        const gameData = snapshot.val();
+        const players = gameData.players || {};
+        const playerCount = Object.keys(players).length;
+
+        // 🔹 TJEK: Maks 10 spillere
+        if (playerCount >= MAX_PLAYERS) {
+          showPopup("Spillet er fyldt – der kan maks være " + MAX_PLAYERS + " spillere!");
+          return;
+        }
+
+        // 🔹 Hvis der stadig er plads → tilføj spiller
+        playerId = "p" + Date.now();
+        playerName = "Spiller " + (playerCount + 1);
+
+        update(ref(db, "games/" + gameId + "/players/" + playerId), {
+          name: playerName,
+          ready: false,
+          score: 0
+        });
+
+        const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
+        onDisconnect(playerRef).remove();
+
+        document.getElementById("start").style.display = "none";
+        document.getElementById("lobby").style.display = "block";
+        document.getElementById("gameCode").innerText = gameId;
+
+        listenLobby();
+        autoDeleteGameWhenEmpty();
+        resetGameFields();
+      }, { onlyOnce: true });
+    };
+    window.leaveGame = async function () {
+      if (!gameId || !playerId) return;
+      const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
+      await remove(playerRef);
+
+      const snapshot = await get(ref(db, "games/" + gameId));
+      const game = snapshot.val();
+
+      // 🔹 Kun host kan udløse sletning af hele spillet
+      if (!game || playerId === game.host) {
+        await remove(ref(db, "games/" + gameId));
+      }
+
+      // nulstil UI
+      document.getElementById("truthGame").style.display = "none";
+      document.getElementById("lobby").style.display = "none";
+      document.getElementById("winnerScreen").style.display = "none";
+      document.getElementById("start").style.display = "block";
+      gameId = null; playerId = null; playerName = null;
+    }
+
+
+
+    // === LOBBY ===
+function listenLobby() {
+  let localTimer = null; // bruges kun af host
+
+  onValue(ref(db, "games/" + gameId), async snapshot => {
+    const game = snapshot.val();
+    if (!game) return;
+
+    const players = game.players || {};
+    const playerCount = Object.keys(players).length;
+
+    // 🚫 Stop alt, hvis der ikke er spillere tilbage
+    if (playerCount === 0) {
+      clearInterval(localTimer);
+      await update(ref(db, "games/" + gameId), {
+        lobbyCountdown: null,
+        status: "venter"
+      });
+      return;
+    }
+
+    let list = "Spillere i lobby:<br>";
+    let allReady = true;
+
+    for (const pid in players) {
+      const p = players[pid];
+      list += p.name + (p.ready ? " ✅" : " ❌") + "<br>";
+      if (!p.ready) allReady = false;
+    }
+    document.getElementById("playerList").innerHTML = list;
+
+    // === 🚀 Hvis spillet er startet i databasen, gå ind i spillet ===
+    if (game.status === "spiller" && !document.getElementById("truthGame").style.display.includes("block")) {
+      document.getElementById("lobby").style.display = "none";
+      startTruthGame(); // starter hos ALLE klienter
+      return;
+    }
+
+    // === Kun værten styrer countdownen ===
+    if (playerId === game.host) {
+      if (allReady && game.status === "venter" && playerCount >= 2 && !game.lobbyCountdown) {
+        let countdown = 10;
+        update(ref(db, "games/" + gameId), { lobbyCountdown: countdown });
+
+        localTimer = setInterval(async () => {
+          countdown--;
+
+          const snap = await get(ref(db, "games/" + gameId));
+          const g = snap.val();
+
+          // 🛑 Stop hvis for få spillere
+          const playerCountNow = Object.keys(g.players || {}).length;
+          if (playerCountNow < 2) {
+            clearInterval(localTimer);
+            update(ref(db, "games/" + gameId), { lobbyCountdown: null });
+            return;
+          }
+
+          // 🛑 Stop hvis nogen ikke længere er klar
+          const stillAllReady = Object.values(g.players || {}).every(p => p.ready);
+          if (!stillAllReady) {
+            clearInterval(localTimer);
+            update(ref(db, "games/" + gameId), { lobbyCountdown: null });
+            return;
+          }
+
+          if (countdown > 0) {
+            update(ref(db, "games/" + gameId), { lobbyCountdown: countdown });
+          } else {
+            clearInterval(localTimer);
+
+            // 🔹 Nulstil alt før spillet starter
+            await update(ref(db, "games/" + gameId), {
+              lobbyCountdown: null,
+              status: "spiller",
+              statusLocked: true,
+              roundCount: 0,
+              turn: null,
+              finalResult: null,
+              round: {
+                story: null,
+                guesses: {},
+                result: null,
+                correct: null,
+                storyteller: null
+              }
+            });
+
+            // 🔹 Host starter — de andre opdager statusændringen og starter selv
+            startTruthGame();
+          }
+        }, 1000);
+      }
+
+      // Hvis nogen annullerer klar → stop countdown
+      if ((!allReady || playerCount < 2) && game.lobbyCountdown) {
+        clearInterval(localTimer);
+        update(ref(db, "games/" + gameId), { lobbyCountdown: null });
+      }
+    }
+
+    // === Alle spillere viser den fælles countdown ===
+    const countText = document.getElementById("playerCount");
+    if (typeof game.lobbyCountdown === "number" && game.lobbyCountdown > 0) {
+      countText.innerText = "Alle er klar! Spillet starter om " + game.lobbyCountdown + " sekunder...";
+    } else {
+      countText.innerText = "Spillere: " + playerCount + " / " + MAX_PLAYERS;
+    }
+
+    // === Opdater "Klar"-knappen ===
+    const me = game.players?.[playerId];
+    const readyBtn = document.getElementById("readyBtn");
+    if (me && readyBtn) {
+      readyBtn.classList.toggle("ready-active", !!me.ready);
+    }
+  });
+}
+
+    window.changeName = function () {
+      let newName = document.getElementById("newName").value.trim();
+      if (!newName) return; 
+      update(ref(db, "games/" + gameId + "/players/" + playerId), { name: newName });
+      playerName = newName;
+    };
+    window.setReady = function () {
+      const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
+
+     
+      get(playerRef).then(snapshot => {
+        const player = snapshot.val();
+        if (!player) return;
+        update(playerRef, { ready: !player.ready }); 
+      });
+    };
+
+
+    // === POPUPS ===
+    window.showPopup = function(message) {
+      document.getElementById("popupMessage").innerText = message;
+      document.getElementById("popup").style.display = "flex";
+    }
+    window.closePopup = function() {
+      document.getElementById("popup").style.display = "none";
+    }
+
+
+    // === SPIL-LOGIK ===
+    function startTruthGame() {
+      document.getElementById("lobby").style.display = "none";
+      document.getElementById("truthGame").style.display = "block";
+      onValue(ref(db, "games/" + gameId + "/players"), snapshot => {
+        const players = snapshot.val();
+        if (!players) return;
+        const ids = Object.keys(players);
+        const starter = ids[Math.floor(Math.random() * ids.length)]; // starter altid med første spiller
+        update(ref(db, "games/" + gameId), { turn: starter, round: {story:null, guesses:{}, result:null}, roundCount: 0 });
+      }, {onlyOnce:true});
+      listenTruthGame();
+    }
+    function listenTruthGame() {
+      onValue(ref(db, "games/" + gameId), snapshot => {
+        const game = snapshot.val();
+        if (!game) return;
+
+        if (game.roundCount !== undefined) {
+          let totalRounds = DEFAULT_ROUNDS; 
+          document.getElementById("roundStatus").innerText =
+            "Runde " + (game.roundCount + 1) + " af " + totalRounds;
+        }
+
+        // 🔹 hvis spillet er slut → vis vinder skærm
+        if (game.status === "slut" && gameId) {
+          document.getElementById("truthGame").style.display = "none";
+          document.getElementById("winnerScreen").style.display = "block";
+          document.getElementById("winnerText").innerHTML = game.finalResult;
+          document.getElementById("roundStatus").innerText = "";
+          return;
+        }
+
+        currentTurn = game.turn;
+        roundData = game.round || {};
+
+        if (currentTurn === playerId && !roundData.story) {
+          // Min tur til at skrive historie
+          document.getElementById("myTurn").style.display = "block";
+          document.getElementById("guessTurn").style.display = "none";
+          document.getElementById("roundResult").style.display = "none";
+          document.getElementById("waitTurn").style.display = "none";
+        }
+        else if (roundData.story && !roundData.result) {
+          // Andre spillere gætter
+          if (playerId !== currentTurn && !(roundData.guesses && roundData.guesses[playerId])) {
+            document.getElementById("storyText").innerText = roundData.story;
+            document.getElementById("guessTurn").style.display = "block";
+            document.getElementById("myTurn").style.display = "none";
+            document.getElementById("roundResult").style.display = "none";
+            document.getElementById("waitTurn").style.display = "none";
+          } else if (playerId !== currentTurn) {
+            // Har allerede gættet → vent
+            document.getElementById("waitTurn").style.display = "block";
+            document.getElementById("myTurn").style.display = "none";
+            document.getElementById("guessTurn").style.display = "none";
+            document.getElementById("roundResult").style.display = "none";
+            document.getElementById("waitMessage").innerText = "⏳ Vent til du kan svare...";
+          }
+        }
+        else if (roundData.result) {
+          // Viser resultat + countdown hvis den findes i databasen
+          let countdownText = "";
+          if (typeof roundData.countdown === "number" && roundData.countdown > 0) {
+            countdownText = "\nNæste tur starter om " + roundData.countdown + "...";
+          }
+          document.getElementById("resultText").innerText = roundData.result + countdownText;
+          document.getElementById("roundResult").style.display = "block";
+          document.getElementById("myTurn").style.display = "none";
+          document.getElementById("guessTurn").style.display = "none";
+          document.getElementById("waitTurn").style.display = "none";
+        }
+        else {
+          // Default: vent
+          document.getElementById("myTurn").style.display = "none";
+          document.getElementById("guessTurn").style.display = "none";
+          document.getElementById("roundResult").style.display = "none";
+          document.getElementById("waitTurn").style.display = "block";
+          document.getElementById("waitMessage").innerText = "⏳ Vent til du kan svare...";
+        }
+
+          updateScoreboard(game.players, game.turn);
+        });
+    }
+    window.submitStory = function() {
+      const story = document.getElementById("storyInput").value;
+      const truth = document.getElementById("truthSelect").value === "true";
+      update(ref(db, "games/" + gameId), {
+        round: { story: story, correct: truth, guesses: {}, storyteller: playerId }
+      });
+      document.getElementById("storyInput").value = "";
+      document.getElementById("myTurn").style.display = "none";
+      document.getElementById("waitTurn").style.display = "block";
+      document.getElementById("waitMessage").innerText = "⏳ Vent til du kan svare...";
+    };
+    window.submitGuess = function(choice) {
+      update(ref(db, "games/" + gameId + "/round/guesses"), { [playerId]: choice });
+      checkRoundEnd();
+    };
+    async function checkRoundEnd() {
+      const snapshot = await get(ref(db, "games/" + gameId));
+      const game = snapshot.val();
+      if (!game || !game.round) return;
+
+      const players = game.players || {};
+      const guesses = game.round.guesses || {};
+      const totalPlayers = Math.max(0, Object.keys(players).length - 1);
+
+      if (Object.keys(guesses).length === totalPlayers) {
+        let resultText = "Historien var " + (game.round.correct ? "Sand ✅" : "Falsk ❌") + "\n";
+        let updates = {};
+
+        for (const pid in guesses) {
+          const guess = guesses[pid];
+          if (guess === game.round.correct) {
+            updates[pid] = (players[pid].score || 0) + 1;
+            resultText += players[pid].name + " gættede rigtigt! +1 point\n";
+          } else {
+            resultText += players[pid].name + " gættede forkert! 0 point\n";
+          }
+        }
+
+        for (const pid in updates) {
+          update(ref(db, "games/" + gameId + "/players/" + pid), { score: updates[pid] });
+        }
+
+        if (!game.round.countdownStarted) {
+          update(ref(db, "games/" + gameId + "/round"), { 
+            result: resultText,
+            countdown: 5,
+            countdownStarted: true
+          });
+
+          let countdown = NEXT_ROUND_DELAY;
+          let interval = setInterval(() => {
+            countdown--;
+            if (countdown >= 0) {
+              update(ref(db, "games/" + gameId + "/round"), { countdown: countdown });
+            }
+            if (countdown <= 0) {
+              clearInterval(interval);
+              nextTurn();
+            }
+          }, 1000);
+        }
+      }
+    }
+    function nextTurn() {
+      get(ref(db, "games/" + gameId)).then(snapshot => {
+        const game = snapshot.val();
+        if (!game) return;
+        const players = game.players || {};
+        const ids = Object.keys(players);
+        if (ids.length === 0) return;
+
+        const currentIndex = ids.indexOf(currentTurn);
+        const nextIndex = (currentIndex + 1) % ids.length;
+        const isNewRound = nextIndex === 0; // 👉 når vi går tilbage til første spiller
+
+        let newRoundCount = game.roundCount || 0;
+        if (isNewRound) {
+          newRoundCount++; // ny runde først efter alle har haft tur
+        }
+
+        // 🔹 Stop spillet, når vi har nået max runder
+        if (newRoundCount >= DEFAULT_ROUNDS) {
+          let ranking = Object.values(players)
+            .map(p => ({ name: p.name, score: p.score || 0 }))
+            .sort((a, b) => b.score - a.score);
+
+          let resultHtml = "🏆 Slutresultat<br>";
+          ranking.forEach((p, i) => {
+            resultHtml += (i + 1) + ". " + p.name + " – " + p.score + " point<br>";
+          });
+
+          update(ref(db, "games/" + gameId), { 
+            status: "slut", 
+            finalResult: resultHtml 
+          });
+          return;
+        }
+
+        // 🔹 Start næste tur
+        update(ref(db, "games/" + gameId), { 
+          turn: ids[nextIndex],
+          round: { story: null, guesses: {}, result: null },
+          roundCount: newRoundCount
+        });
+      });
+    }
+
+
+    // === SCORE OG RESULTATER ===
+    function updateScoreboard(players, currentTurn) {
+      if (!players) {
+        document.getElementById("truthScoreboard").innerHTML =
+          "<h3 style='text-align:center;'>Scoreboard</h3><p style='text-align:center;'>Ingen spillere endnu...</p>";
+        return;
+      }
+
+      let html = "<h3 style='text-align:center;'>Scoreboard</h3>";
+
+      const ids = Object.keys(players);
+      let index = 1;
+      for (const pid of ids) {
+        const marker =
+          pid === currentTurn
+            ? "<span style='display:inline-flex; align-items:center; height:1em;'>⬅️ (tur)</span>"
+            : "<span style='display:inline-flex; align-items:center; height:1em;'></span>";
+
+        html +=
+          "<div style='display:flex; justify-content:center; align-items:center; gap:10px; margin:2px 0; font-size:16px; line-height:1.2;'>" +
+            "<span style='width:24px; text-align:right;'>" + index + ".</span>" +
+            "<span>" + players[pid].name + ": " + (players[pid].score || 0) + " point</span>" +
+            // fast “kolonne” til markør, så layout ikke hopper
+            "<span style='width:70px; text-align:left; display:inline-flex; align-items:center; height:1em;'>" + marker + "</span>" +
+          "</div>";
+        index++;
+      }
+
+      document.getElementById("truthScoreboard").innerHTML = html;
+    }
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
