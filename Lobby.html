@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<title>Lobby System</title>
+<style>
+body{font-family:Arial,sans-serif;background:#203a43;color:white;margin:0;display:flex;flex-direction:column;align-items:center;height:100vh;}
+h1{margin-top:20px;}
+#container{display:flex;width:90%;max-width:1000px;height:80vh;margin-top:20px;background:rgba(255,255,255,0.05);border-radius:10px;box-shadow:0 0 20px rgba(0,0,0,0.6);overflow:hidden;backdrop-filter:blur(8px);}
+#playerList{width:25%;background:rgba(255,255,255,0.1);padding:10px;overflow-y:auto;border-right:1px solid rgba(255,255,255,0.2);}
+#main{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;}
+#chat{width:30%;background:rgba(255,255,255,0.1);padding:10px;border-left:1px solid rgba(255,255,255,0.2);display:flex;flex-direction:column;}
+#chatMessages{flex:1;overflow-y:auto;margin-bottom:10px;}
+#chatInput{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.05);padding:6px;border-radius:8px;box-sizing:border-box;}
+#chatInput input{flex:1;height:36px;border:none;border-radius:6px;padding:0 10px;font-size:14px;color:#0f172a;background:white;box-sizing:border-box;outline:none;line-height:36px;}
+#chatInput button{height:36px;padding:0 18px;border:none;border-radius:6px;background:#00b894;color:white;font-weight:600;cursor:pointer;transition:0.2s ease;box-shadow:0 0 6px rgba(0,255,180,0.35);display:flex;align-items:center;justify-content:center;}
+button{padding:8px 15px;margin-top:5px;border:none;border-radius:5px;background:#00b894;color:white;cursor:pointer;transition:0.2s;}
+button:hover{opacity:0.9;}
+button:disabled{background:#555;cursor:not-allowed;}
+#startScreen{text-align:center;margin-top:100px;}
+.same-size {width:150px; height:32px; border:none; border-radius:6px;background:#00b894; color:white; font-size:14px; text-align:center; box-sizing:border-box;margin:6px; padding:4px 10px; cursor:pointer;transition:all 0.2s ease; font-weight:600;box-shadow:0 0 6px rgba(0,255,180,0.35);}
+.same-size:hover {transform:scale(1.05); background:#00d4a1;}
+.same-size:disabled {background:#555; color:#ccc; cursor:not-allowed; box-shadow:none;}
+.same-size-input{width:150px;height:32px;box-sizing:border-box;}
+input{padding:8px;border:1px solid #ccc;border-radius:5px;}
+#readyBtn.ready{background:#00b894;} /* grøn når klar */
+#readyBtn.not-ready{background:#555;} /* grå når uklar */
+body.dark { background: #000 !important; color: white; }
+/* === POPUP STYLING === */
+#popup{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);justify-content:center;align-items:center;z-index:1000;}
+#popupContent{background:white;color:black;padding:20px;border-radius:10px;min-width:250px;text-align:center;box-shadow:0 0 15px rgba(0,0,0,0.5);}
+#popup button{margin-top:10px;padding:8px 20px;background:#00b894;color:white;border:none;border-radius:5px;cursor:pointer;}
+/* === MOBILVENLIGT DESIGN === */ 
+@media (max-width:700px){body{flex-direction:column;height:auto;padding:10px;}#container{flex-direction:column;width:100%;height:auto;}#playerList,#main,#chat{width:100%;border:none;border-radius:0;padding:10px;box-sizing:border-box;}#main{align-items:center;gap:10px;}#startScreen{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:60px;}#startScreen input,#startScreen button{width:80%;max-width:250px;}#chatInput{flex-direction:column;gap:8px;}#chatInput input,#chatInput button{width:100%;}.same-size{width:100%;max-width:250px;}}
+</style>
+</head>
+<body>
+<h1>Lobby</h1>
+
+<div id="startScreen"> 
+  <button class="same-size" onclick="createGame()">Opret spil</button>
+  <br><br><button class="same-size" onclick="joinGame()">Join spil</button><br><br>
+  <input type="text" id="joinCode" class="same-size-input" placeholder="Indtast kode">
+</div>
+
+<div id="container" style="display:none;">
+  <div id="playerList"></div>
+  <div id="main">
+    <h2 id="gameCodeDisplay"></h2>
+    <input type="text" id="newName" class="same-size-input" placeholder="Skift navn">
+    <button class="same-size" onclick="changeName()">Gem navn</button>
+    <button id="readyBtn" class="same-size not-ready" onclick="toggleReady()">Klar</button>
+    <button id="startBtn" class="same-size" onclick="startGame()" disabled>Start spil</button>
+    <select id="gameMode" class="same-size" disabled>
+      <option value="">Vælg spiltype...</option>
+      <option value="Terning">🎲 Terning</option>
+      <option value="Sandtfalsk">Sandt eller Falsk</option>
+    </select>
+    <button class="same-size" onclick="leaveGame()" style="background:#e74c3c;color:white;border:none;">Log ud</button>
+  </div>
+  <div id="chat">
+    <div id="chatMessages"></div>
+    <div id="chatInput">
+      <input id="chatText" type="text" placeholder="Skriv besked...">
+      <button class="same-size" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+</div>
+
+<div id="popup">
+  <div id="popupContent">
+    <p id="popupMessage"></p>
+    <button class="same-size" onclick="closePopup()">OK</button>
+  </div>
+</div>
+
+<button id="themeToggle" class="same-size" style="position:absolute;top:25px;right:40px;">🌙 Mørk tilstand</button>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+import {getDatabase,ref,set,update,onValue,remove,push,onDisconnect,get} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+const firebaseConfig={apiKey:"AIzaSyBJPveZ_kuPqB2GCfFuDuYgrUjlxtHaq5w",authDomain:"lobby-dc329.firebaseapp.com",databaseURL:"https://lobby-dc329-default-rtdb.europe-west1.firebasedatabase.app",projectId:"lobby-dc329",storageBucket:"lobby-dc329.firebasestorage.app",messagingSenderId:"244192634791",appId:"1:244192634791:web:c527a06b7d88b5782eb882"};
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
+
+let gameId=null,playerId=null,playerName=null,isHost=false,isReady=false;
+
+// === Tema ===
+const themeToggle = document.getElementById("themeToggle");
+const body = document.body;
+themeToggle.addEventListener("click", () => {
+  body.classList.toggle("dark");
+  themeToggle.textContent = body.classList.contains("dark") ? "☀️ Lys tilstand" : "🌙 Mørk tilstand";
+});
+
+// === POPUPS ===
+window.showPopup=function(msg){document.getElementById("popupMessage").innerText=msg;document.getElementById("popup").style.display="flex";}
+window.closePopup=function(){document.getElementById("popup").style.display="none";}
+
+// === Opret spil ===
+window.createGame = async function() {
+  gameId = Math.floor(1000 + Math.random() * 9000);
+  playerId = "p" + Date.now();
+  playerName = "Spiller 1";
+
+  // 💾 Gem spillernavnet så Terning.html kan hente det
+  sessionStorage.setItem("playerName", playerName);
+
+  isHost = true;
+  await set(ref(db, "games/" + gameId), {
+    status: "venter",
+    players: {
+      [playerId]: { name: playerName, ready: false, isHost: true }
+    },
+    chat: []
+  });
+  enterLobby();
+};
+
+// === Join spil ===
+window.joinGame = async function() {
+  const code = document.getElementById("joinCode").value.trim();
+  if (!code) return showPopup("Indtast en kode!");
+  gameId = code;
+  playerId = "p" + Date.now();
+
+  const snapshot = await get(ref(db, "games/" + gameId + "/players"));
+  if (!snapshot.exists()) return showPopup("Spillet findes ikke!");
+  const players = snapshot.val() || {};
+  const count = Object.keys(players).length;
+  if (count >= 4) return showPopup("Lobbyen er fuld (maks 4 spillere).");
+
+  playerName = "Spiller " + (count + 1);
+
+  // 💾 Gem spillernavnet
+  sessionStorage.setItem("playerName", playerName);
+
+  await update(ref(db, "games/" + gameId + "/players/" + playerId), {
+    name: playerName,
+    ready: false,
+    isHost: false
+  });
+  enterLobby();
+};
+
+// === Gå ind i lobby ===
+function enterLobby() {
+  document.getElementById("startScreen").style.display = "none";
+  document.getElementById("container").style.display = "flex";
+  document.getElementById("gameCodeDisplay").innerText = "Kode: " + gameId;
+
+if (isHost) {
+  const modeSel = document.getElementById("gameMode");
+  modeSel.disabled = false;
+  modeSel.addEventListener("change", function() {
+    update(ref(db, "games/" + gameId), { mode: this.value || null });
+  });
+}
+
+  listenLobby();
+  listenChat();
+
+  // 🔹 Lyt efter om spillet starter (så alle bliver sendt videre)
+  onValue(ref(db, "games/" + gameId + "/status"), snap => {
+    const status = snap.val();
+    if (status === "startet") {
+      get(ref(db, "games/" + gameId + "/mode")).then(modeSnap => {
+        const mode = modeSnap.val();
+        if (mode) {
+          window.location.href = mode + ".html?gameId=" + gameId + "&playerId=" + playerId;
+        }
+      });
+    }
+  });
+
+  const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
+  const gameRef = ref(db, "games/" + gameId);
+
+  onDisconnect(playerRef).remove();
+
+  // 🔸 Lyt efter om spillet bliver slettet (værten lukker)
+  onValue(gameRef, snap => {
+    if (!snap.exists()) {
+      // Spillet blev slettet → værten lukkede det
+      document.getElementById("container").style.display = "none";
+      document.getElementById("startScreen").style.display = "block";
+      document.getElementById("popup").style.display = "none";
+    }
+  });
+
+  // 🔸 Lyt efter om spilleren bliver fjernet af værten
+  onValue(playerRef, async snap => {
+    if (!snap.exists() && gameId && !leavingManually) { // ⬅️ tilføjet ekstra tjek
+      setTimeout(async () => {
+        const gameSnap = await get(gameRef);
+        if (gameSnap.exists()) {
+          showPopup("Du er blevet fjernet af værten.");
+        }
+        document.getElementById("container").style.display = "none";
+        document.getElementById("startScreen").style.display = "block";
+      }, 300);
+    }
+  });
+}
+
+
+// === Skift navn ===
+window.changeName = function() {
+  const newName = document.getElementById("newName").value.trim();
+
+  if (newName.length < 1 || newName.length > 14) {
+    showPopup("Navnet skal være mellem 1 og 14 tegn!");
+    return;
+  }
+
+  playerName = newName;
+  update(ref(db, "games/" + gameId + "/players/" + playerId), { name: newName });
+};
+
+// === Klar / Uklar ===
+window.toggleReady=function(){
+  isReady=!isReady;
+  update(ref(db,"games/"+gameId+"/players/"+playerId),{ready:isReady});
+  const btn=document.getElementById("readyBtn");
+  if(isReady){
+    btn.innerText="Klar";
+    btn.classList.remove("not-ready");
+    btn.classList.add("ready");
+  }else{
+    btn.innerText="Klar";
+    btn.classList.remove("ready");
+    btn.classList.add("not-ready");
+  }
+}
+
+// === Start spil ===
+window.startGame=function(){
+  const mode = document.getElementById("gameMode").value; // læser hvilket spil der er valgt
+
+  if (!mode) {
+    showPopup("Vælg et spil, før du starter!");
+    return;
+  }
+
+  update(ref(db,"games/"+gameId),{status:"startet", mode: mode});
+  window.location.href=mode + ".html?gameId=" + gameId + "&playerId=" + playerId;
+}
+
+// === Chat ===
+window.sendMessage=function(){
+  const text=document.getElementById("chatText").value.trim();
+  if(!text)return;
+  const chatRef=ref(db,"games/"+gameId+"/chat");
+  push(chatRef,{name:playerName,text:text});
+  document.getElementById("chatText").value="";
+}
+
+// === Lyt til chat ===
+function listenChat(){
+  onValue(ref(db,"games/"+gameId+"/chat"),snap=>{
+    const data=snap.val()||{};
+    const div=document.getElementById("chatMessages");
+    div.innerHTML=Object.values(data).map(m=>`<p><strong>${m.name}:</strong> ${m.text}</p>`).join("");
+    div.scrollTop=div.scrollHeight;
+  });
+}
+
+// === Lyt til lobby ===
+function listenLobby() {
+  onValue(ref(db, "games/" + gameId), snap => {
+    const game = snap.val(); 
+    if (!game) return;
+
+    const players = game.players || {};
+    let allReady = true;
+    let html = "<h3>Spillere</h3>";
+
+    Object.entries(players).forEach(([pid, p]) => {
+      html += `${p.name}${p.isHost ? " 👑" : ""} ${p.ready ? "✅" : "❌"}`;
+      if (players[playerId]?.isHost && pid !== playerId)
+        html += ` <button style='background:#e74c3c' onclick="kickPlayer('${pid}')">Fjern</button>`;
+      html += "<br>";
+      if (!p.ready) allReady = false;
+    });
+    document.getElementById("playerList").innerHTML = html;
+
+    const playerCount = Object.keys(players).length;
+    const canStart = (playerCount >= 1 && allReady);
+    if (players[playerId]?.isHost)
+      document.getElementById("startBtn").disabled = !canStart;
+
+    // 🔸 Opdater dropdown hos alle
+    const modeSelect = document.getElementById("gameMode");
+    modeSelect.value = game.mode || "";
+
+    // 🔸 Vis valgt spiltype hos alle
+    const modeDisplay = document.getElementById("modeDisplay");
+    if (modeDisplay) {
+      modeDisplay.innerText = game.mode ? "🎮 Værten har valgt: " + game.mode : "";
+    }
+  });
+}
+
+
+// === Kick spiller ===
+window.kickPlayer=function(pid){remove(ref(db,"games/"+gameId+"/players/"+pid));}
+
+// === Forlad spil ===
+let leavingManually = false;
+
+window.leaveGame = async function() {
+  leavingManually = true; // marker at spilleren selv logger ud
+  if (isHost) {
+    await remove(ref(db, "games/" + gameId));
+  } else {
+    await remove(ref(db, "games/" + gameId + "/players/" + playerId));
+  }
+  document.getElementById("container").style.display = "none";
+  document.getElementById("startScreen").style.display = "block";
+  gameId = null;
+  playerId = null;
+  playerName = null;
+  isHost = false;
+  isReady = false;
+};
+</script>
+</body>
+</html>
+
+
+
+
+

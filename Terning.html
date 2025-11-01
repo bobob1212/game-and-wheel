@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<title>🎲 Terning</title>
+<style>
+body{font-family:Arial,sans-serif;background:#203a43;color:white;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;overflow:hidden;}
+#container{position:relative;width:100%;max-width:1400px;height:100%;display:flex;align-items:center;justify-content:center;}
+/* === Spillerliste === */
+#playerList{position:absolute;left:60px;top:19%;width:220px;background:rgba(255,255,255,0.08);border-radius:10px;padding:15px;box-shadow:0 0 20px rgba(0,0,0,0.5);backdrop-filter:blur(8px);max-height:70vh;overflow-y:auto;border:1px solid rgba(255,255,255,0.2);border: 2px solid #ffffff;}
+#playerList h2{margin-top:0;text-align:center;font-size:18px;color:white;text-shadow:0 0 6px rgba(255,255,255,0.2);}
+#playerList p{margin:6px 0;font-size:15px;color:white;}
+/* === Spillet === */
+#main{background:rgba(255,255,255,0.08);padding:70px 100px;border-radius:20px;text-align:center;box-shadow:0 0 25px rgba(0,0,0,0.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);border: 2px solid #ffffff;}
+#main h1{font-size:38px;margin-bottom:10px;color:white;text-shadow:0 0 6px rgba(255,255,255,0.2);}
+#main h3{font-size:22px;margin-top:0;color:white;}
+#dice{font-size:180px;margin:40px;cursor:pointer;transition:transform 0.2s ease, color 0.2s ease, text-shadow 0.2s ease;}
+#dice:hover{transform:scale(1.05);}
+#dice:active{transform:scale(0.9);}
+#results{margin-top:25px;font-size:22px;color:white;}
+button{padding:12px 30px;border:none;border-radius:8px;background:#00b894;color:white;font-weight:700;cursor:pointer;transition:0.2s;box-shadow:0 0 10px rgba(0,255,180,0.5);}
+button:hover{opacity:0.9;transform:scale(1.03);}
+.same-size {width:150px; height:32px; border:none; border-radius:6px;background:#00b894; color:white; font-size:14px; text-align:center; box-sizing:border-box;margin:6px; padding:4px 10px; cursor:pointer;transition:all 0.2s ease; font-weight:600;box-shadow:0 0 6px rgba(0,255,180,0.35);}
+.same-size:hover {transform:scale(1.05); background:#00d4a1;}
+.same-size:disabled {background:#555; color:#ccc; cursor:not-allowed; box-shadow:none;}
+body.dark { background: #000 !important; color: white; }
+@keyframes glowPulse{0%{text-shadow:none;}50%{text-shadow:0 0 20px #00ffcc;}100%{text-shadow:none;}}
+@media(max-width:900px){body{flex-direction:column;height:auto;padding:20px;}#main{max-width:100%;padding:40px;}}
+</style>
+<button id="themeToggle" class="same-size" style="position:absolute;top:25px;right:40px;">🌙 Mørk tilstand</button>
+</head>
+<body>
+<div id="container">
+  <div id="playerList"><h2>Spillere</h2><div id="players"></div></div>
+  <div id="main">
+    <h1>🎲 Terningkast</h1>
+    <div id="dice" onclick="rollDice()">🎲</div>
+    <div id="results"></div>
+    <button class="same-size" onclick="resetGame()">🔄 Nulstil spil</button>
+    <button class="same-size" onclick="backToLobby()">⬅️ Tilbage til lobby</button>
+  </div>
+</div>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+import {getDatabase,ref,update,onValue,get,remove,set} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+// === Samme database som Lobby ===
+const firebaseConfig = {
+  apiKey: "AIzaSyBJPveZ_kuPqB2GCfFuDuYgrUjlxtHaq5w",
+  authDomain: "lobby-dc329.firebaseapp.com",
+  databaseURL: "https://lobby-dc329-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "lobby-dc329",
+  storageBucket: "lobby-dc329.firebasestorage.app",
+  messagingSenderId: "244192634791",
+  appId: "1:244192634791:web:c527a06b7d88b5782eb882"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// === Tema ===
+const themeToggle=document.getElementById("themeToggle");
+const body=document.body;
+themeToggle.addEventListener("click",()=>{body.classList.toggle("dark");themeToggle.textContent=body.classList.contains("dark")?"☀️ Lys tilstand":"🌙 Mørk tilstand";});
+
+// Hent gameId og playerId fra URL
+const urlParams = new URLSearchParams(window.location.search);
+const gameId = urlParams.get("gameId");
+const playerId = urlParams.get("playerId");
+
+let isHost = false;
+
+let playerName = sessionStorage.getItem("playerName");
+
+if (!playerName) {
+  playerName = "Ukendt spiller";
+}
+
+const gameRef = ref(db, "games/" + gameId);
+const playersRef = ref(db, "games/" + gameId + "/players");
+const resultsRef = ref(db, "games/" + gameId + "/results");
+
+let hasRolled = false;
+
+console.log("🔹 Forbinder til spil:", gameId, "som", playerId);
+
+import {onDisconnect} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+async function ensurePlayerExists() {
+  const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
+  const snap = await get(playerRef);
+  if (!snap.exists()) {
+    console.log("🆕 Tilføjer spilleren:", playerName);
+    await set(playerRef, { name: playerName, ready: true });
+  } else {
+    const data = snap.val();
+    if (!data.name) {
+      await update(playerRef, { name: playerName });
+    }
+  }
+  onDisconnect(playerRef).remove();
+}
+ensurePlayerExists();
+
+// === Vis spillere ===
+onValue(playersRef, (snap) => {
+  const players = snap.val() || {};
+  let html = "";
+  for (const [pid, p] of Object.entries(players)) {
+    // Hvis det er dig selv, så tilføj (dig)
+    const you = pid === playerId ? " <span style='opacity:0.8;'>(dig)</span>" : "";
+    html += `<p id="pl_${pid}">${p.name}${you}: 🎲</p>`;
+  }
+  document.getElementById("players").innerHTML = html;
+});
+
+
+// === Lyt efter resultater ===
+onValue(resultsRef, (snap) => {
+  const data = snap.val() || {};
+  for (const [pid, res] of Object.entries(data)) {
+    const pElem = document.getElementById("pl_" + pid);
+    if (pElem) {
+      const baseText = pElem.textContent.split(":")[0]; 
+      pElem.innerHTML = `${baseText}: 🎲 <strong>${res.value}</strong>`;
+    }
+  }
+
+  // === Find vinder ===
+  const allPlayers = Object.keys(data);
+  get(playersRef).then((psnap) => {
+    const total = Object.keys(psnap.val() || {}).length;
+    if (allPlayers.length === total && total > 0) {
+      let winner = Object.values(data).reduce((a, b) => (a.value > b.value ? a : b));
+      document.getElementById("results").innerHTML = `<h3>🏆 Vinderen er ${winner.name}! (🎲 <strong>${winner.value}</strong>)</h3>`;
+    }
+  });
+});
+
+// === Slå terning ===
+window.rollDice = async function () {
+  if (hasRolled) return;
+  hasRolled = true;
+  const roll = Math.floor(Math.random() * 6) + 1;
+  const dice = document.getElementById("dice");
+  dice.style.animation = "glowPulse 0.6s ease";
+  setTimeout(() => (dice.style.animation = ""), 600);
+  dice.innerText = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"][roll - 1];
+  await update(ref(db, "games/" + gameId + "/results/" + playerId), {
+    name: playerName,
+    value: roll
+  });
+};
+
+// === Nulstil spil ===
+window.resetGame = async function() {
+  // 🔹 Fjern resultater fra databasen
+  await remove(resultsRef);
+
+  // 🔹 Nulstil visning lokalt
+  hasRolled = false;
+  document.getElementById("results").innerHTML = "";
+  document.getElementById("dice").innerText = "🎲";
+
+  // 🔹 Gendan spillerlisten med terningen, men uden tallet
+  const playerElements = document.querySelectorAll("#players p");
+  playerElements.forEach(pElem => {
+    const baseText = pElem.textContent.split(":")[0]; // behold kun navnet og (dig)
+    pElem.innerHTML = `${baseText}: 🎲`; // behold terning uden tal
+  });
+};
+
+// === Tilbage til lobby ===
+window.backToLobby = async function () {
+  const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
+  const playerResultRef = ref(db, "games/" + gameId + "/results/" + playerId);
+  const gameRef = ref(db, "games/" + gameId);
+
+  try {
+    await remove(playerRef);
+    await remove(playerResultRef);
+
+    const playersSnap = await get(ref(db, "games/" + gameId + "/players"));
+    const remaining = playersSnap.val();
+
+    if (!remaining) {
+      await remove(gameRef);
+    }
+
+    window.location.href = "Lobby.html";
+  } catch (err) {
+    console.error("Fejl ved forladelse:", err); // du kan beholde denne ene for fejl
+  }
+};
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
