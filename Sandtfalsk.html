@@ -18,6 +18,21 @@ select{padding:8px;border-radius:6px;margin-bottom:10px;}
 .same-size:disabled {background:#555; color:#ccc; cursor:not-allowed; box-shadow:none;}
 body.dark{background:#000!important;color:white;}
 @media(max-width:900px){body{flex-direction:column;height:auto;padding:20px;}#main{max-width:100%;padding:40px;}}
+@media (max-width: 600px) {
+  .same-size, .same-size-input, .code-input {
+    width: 90%;       /* gør knapper/input næsten fuld bredde */
+    height: 48px;     /* højere knapper */
+    font-size: 18px;  /* større tekst */
+    margin: 10px auto;
+    display: block;   /* sørger for de står under hinanden */
+  }
+
+  #startScreen {
+    flex-direction: column; /* sætter dem lodret på mobil */
+    align-items: center;
+    gap: 12px;
+  }
+}  
 </style>
 <button id="themeToggle" class="same-size" style="position:absolute;top:25px;right:40px;">🌙 Mørk tilstand</button>
 </head>
@@ -221,6 +236,7 @@ window.backToLobby = async function () {
 </script>
 </body>
 </html>
+
 
 
 
