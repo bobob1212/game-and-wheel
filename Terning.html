@@ -109,33 +109,124 @@ onValue(playersRef, (snap) => {
   for (const [pid, p] of Object.entries(players)) {
     // Hvis det er dig selv, så tilføj (dig)
     const you = pid === playerId ? " <span style='opacity:0.8;'>(dig)</span>" : "";
-    html += `<p id="pl_${pid}">${p.name}${you}: 🎲</p>`;
+    html += `<p id="pl_${pid}">${p.name}${you}: 🏆 0 🎲 0</p>`;
   }
   document.getElementById("players").innerHTML = html;
 });
 
 
-// === Lyt efter resultater ===
+/// === Lyt efter resultater ===
 onValue(resultsRef, (snap) => {
   const data = snap.val() || {};
-  for (const [pid, res] of Object.entries(data)) {
-    const pElem = document.getElementById("pl_" + pid);
-    if (pElem) {
-      const baseText = pElem.textContent.split(":")[0]; 
-      pElem.innerHTML = `${baseText}: 🎲 <strong>${res.value}</strong>`;
-    }
-  }
 
-  // === Find vinder ===
-  const allPlayers = Object.keys(data);
   get(playersRef).then((psnap) => {
-    const total = Object.keys(psnap.val() || {}).length;
-    if (allPlayers.length === total && total > 0) {
-      let winner = Object.values(data).reduce((a, b) => (a.value > b.value ? a : b));
-      document.getElementById("results").innerHTML = `<h3>🏆 Vinderen er ${winner.name}! (🎲 <strong>${winner.value}</strong>)</h3>`;
+    const players = psnap.val() || {};
+    const totalPlayers = Object.keys(players).length;
+    const rolledPlayers = Object.keys(data).length;
+    const allRolled = rolledPlayers >= totalPlayers && totalPlayers > 0;
+
+    for (const [pid, p] of Object.entries(players)) {
+      const pElem = document.getElementById("pl_" + pid);
+      if (!pElem) continue;
+
+      const baseText = pElem.textContent.split(":")[0];
+      const result = data[pid]?.value ?? 0;
+
+      if (allRolled) {
+        const maxValue = Math.max(...Object.values(data).map(d => d.value));
+        const winners = Object.entries(data).filter(([id, d]) => d.value === maxValue);
+        const isWinner = winners.some(([id]) => id === pid);
+
+        const match = pElem.textContent.match(/🏆\s*(\d+)/);
+        let wins = match ? parseInt(match[1]) : 0;
+
+        if (isWinner && !pElem.classList.contains("wonThisRound")) {
+          wins += 1;
+          pElem.classList.add("wonThisRound"); 
+        }
+
+        const resultDisplay = result ? `<strong>${result}</strong>` : "0";
+        pElem.innerHTML = `${baseText}: 🏆 ${wins} 🎲 ${resultDisplay}`;
+      } else {
+        pElem.classList.remove("wonThisRound"); 
+        if (data[pid]) {
+          const currentWins = (pElem.textContent.match(/🏆\s*(\d+)/) || [0, 0])[1];
+          if (pid === playerId) {
+            pElem.innerHTML = `${baseText}: 🏆 ${currentWins} 🎲 <strong>${result}</strong>`;
+          } else {
+            pElem.innerHTML = `${baseText}: 🏆 ${currentWins} 🎲 ❓`;
+          }
+        } else {
+          const currentWins = (pElem.textContent.match(/🏆\s*(\d+)/) || [0, 0])[1];
+          pElem.innerHTML = `${baseText}: 🏆 ${currentWins} 🎲 0`;
+        }
+      }
+    }
+
+    if (allRolled) {
+      const maxValue = Math.max(...Object.values(data).map(d => d.value));
+      const winners = Object.values(data).filter(d => d.value === maxValue);
+
+      if (winners.length === 1) {
+        document.getElementById("results").innerHTML =
+          `<h3>🏆 Vinderen er ${winners[0].name}! (🎲 <strong>${winners[0].value}</strong>)</h3>`;
+      } else {
+        const names = winners.map(d => d.name).join(" og ");
+        document.getElementById("results").innerHTML =
+          `<h3>🤝 Uafgjort mellem ${names}! (🎲 <strong>${maxValue}</strong>)</h3><p>🏆 Alle får én sejr!</p>`;
+      }
+
+      // 🔁 Efter 5 sekunder: send "reset"-signal til databasen (kun én gang)
+      setTimeout(async () => {
+        await set(ref(db, "games/" + gameId + "/reset"), Date.now());
+      }, 5000);
+    } else {
+      if (data[playerId]) {
+        document.getElementById("results").innerHTML = `<p>⏳ Venter på de andre spillere...</p>`;
+      } else {
+        document.getElementById("results").innerHTML = ""; 
+      }
     }
   });
 });
+
+// 👇 Lyt efter nulstillingssignal fra databasen
+onValue(ref(db, "games/" + gameId + "/reset"), (snapshot) => {
+  if (snapshot.exists()) {
+    resetLocalView();
+  }
+});
+
+// 🧹 Lokal nulstillingsfunktion
+function resetLocalView() {
+  // 🎯 Gem nuværende sejre
+  const oldWins = {};
+  document.querySelectorAll("#players p").forEach(p => {
+    const id = p.id.replace("pl_", "");
+    const match = p.textContent.match(/🏆\s*(\d+)/);
+    oldWins[id] = match ? parseInt(match[1]) : 0;
+  });
+
+  // Nulstil visning (ikke sejrene)
+  hasRolled = false;
+  document.getElementById("results").innerHTML = "";
+  document.getElementById("dice").innerText = "🎲";
+
+  // Fjern resultater fra databasen
+  remove(ref(db, "games/" + gameId + "/results")).catch(() => {});
+
+  // Hent spillere igen og gendan sejrene
+  get(playersRef).then(playersSnap => {
+    const players = playersSnap.val() || {};
+    let html = "";
+    for (const [pid, p] of Object.entries(players)) {
+      const wins = oldWins[pid] || 0;
+      const you = pid === playerId ? " <span style='opacity:0.8;'>(dig)</span>" : "";
+      html += `<p id="pl_${pid}">${p.name}${you}: 🏆 ${wins} 🎲 0</p>`;
+    }
+    document.getElementById("players").innerHTML = html;
+  });
+}
 
 // === Slå terning ===
 window.rollDice = async function () {
@@ -155,7 +246,7 @@ window.rollDice = async function () {
 // === Nulstil spil ===
 window.resetGame = async function() {
   const voteRef = ref(db, `games/${gameId}/resetVotes/${playerId}`);
-  await set(voteRef, true); // marker spillerens stemme
+  await set(voteRef, true); 
 
   const votesSnap = await get(resetVotesRef);
   const playersSnap = await get(playersRef);
@@ -166,15 +257,12 @@ window.resetGame = async function() {
   const playerCount = Object.keys(players).length;
   const remaining = playerCount - votedCount;
 
-  // 🔹 Hvis der mangler spillere, vis status
   if (remaining > 0) {
     document.getElementById("results").innerHTML = `⏳ Venter på ${remaining} spiller${remaining === 1 ? "" : "e"}...`;
   } else {
-    // 🔹 Når alle har stemt, nulstil resultater og stemmer
     await remove(ref(db, `games/${gameId}/results`));
     await remove(ref(db, `games/${gameId}/resetVotes`));
 
-    // 🔹 Opdater interface hos alle
     await update(gameRef, { resetTrigger: Date.now() });
   }
 };
@@ -182,16 +270,15 @@ window.resetGame = async function() {
 // === Lyt efter nulstilling (automatisk reset for alle) ===
 onValue(ref(db, `games/${gameId}/resetTrigger`), (snap) => {
   if (snap.exists()) {
-    // ryd lokal status
+
     hasRolled = false;
     document.getElementById("results").innerHTML = "";
     document.getElementById("dice").innerText = "🎲";
 
-    // nulstil spilleres visning
     const playerElems = document.querySelectorAll("#players p");
     playerElems.forEach(p => {
       const baseText = p.textContent.split(":")[0];
-      p.innerHTML = `${baseText}: 🎲`;
+      p.innerHTML = `${baseText}: 🏆 0 🎲 0`;
     });
   }
 });
@@ -222,6 +309,7 @@ window.backToLobby = async function () {
 </script>
 </body>
 </html>
+
 
 
 
