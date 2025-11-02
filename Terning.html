@@ -79,6 +79,7 @@ if (!playerName) {
 const gameRef = ref(db, "games/" + gameId);
 const playersRef = ref(db, "games/" + gameId + "/players");
 const resultsRef = ref(db, "games/" + gameId + "/results");
+const resetVotesRef = ref(db, "games/" + gameId + "/resetVotes");
 
 let hasRolled = false;
 
@@ -153,21 +154,48 @@ window.rollDice = async function () {
 
 // === Nulstil spil ===
 window.resetGame = async function() {
-  // 🔹 Fjern resultater fra databasen
-  await remove(resultsRef);
+  const voteRef = ref(db, `games/${gameId}/resetVotes/${playerId}`);
+  await set(voteRef, true); // marker spillerens stemme
 
-  // 🔹 Nulstil visning lokalt
-  hasRolled = false;
-  document.getElementById("results").innerHTML = "";
-  document.getElementById("dice").innerText = "🎲";
+  const votesSnap = await get(resetVotesRef);
+  const playersSnap = await get(playersRef);
+  const votes = votesSnap.val() || {};
+  const players = playersSnap.val() || {};
 
-  // 🔹 Gendan spillerlisten med terningen, men uden tallet
-  const playerElements = document.querySelectorAll("#players p");
-  playerElements.forEach(pElem => {
-    const baseText = pElem.textContent.split(":")[0]; // behold kun navnet og (dig)
-    pElem.innerHTML = `${baseText}: 🎲`; // behold terning uden tal
-  });
+  const votedCount = Object.keys(votes).length;
+  const playerCount = Object.keys(players).length;
+  const remaining = playerCount - votedCount;
+
+  // 🔹 Hvis der mangler spillere, vis status
+  if (remaining > 0) {
+    document.getElementById("results").innerHTML = `⏳ Venter på ${remaining} spiller${remaining === 1 ? "" : "e"}...`;
+  } else {
+    // 🔹 Når alle har stemt, nulstil resultater og stemmer
+    await remove(ref(db, `games/${gameId}/results`));
+    await remove(ref(db, `games/${gameId}/resetVotes`));
+
+    // 🔹 Opdater interface hos alle
+    await update(gameRef, { resetTrigger: Date.now() });
+  }
 };
+
+// === Lyt efter nulstilling (automatisk reset for alle) ===
+onValue(ref(db, `games/${gameId}/resetTrigger`), (snap) => {
+  if (snap.exists()) {
+    // ryd lokal status
+    hasRolled = false;
+    document.getElementById("results").innerHTML = "";
+    document.getElementById("dice").innerText = "🎲";
+
+    // nulstil spilleres visning
+    const playerElems = document.querySelectorAll("#players p");
+    playerElems.forEach(p => {
+      const baseText = p.textContent.split(":")[0];
+      p.innerHTML = `${baseText}: 🎲`;
+    });
+  }
+});
+
 
 // === Tilbage til lobby ===
 window.backToLobby = async function () {
@@ -194,6 +222,7 @@ window.backToLobby = async function () {
 </script>
 </body>
 </html>
+
 
 
 
