@@ -2,283 +2,202 @@
 <html lang="da">
 <head>
 <meta charset="UTF-8">
-<title>Sandt eller Falsk</title>
+<title>🎲 Terning</title>
 <style>
 body{font-family:Arial,sans-serif;background:#203a43;color:white;margin:0;display:flex;align-items:center;justify-content:center;height:100vh;overflow:hidden;}
-#main{background: rgba(255, 255, 255, 0.07);padding: 50px 100px;border-radius: 25px;text-align: center;box-shadow: 0 0 35px rgba(0, 0, 0, 0.7);backdrop-filter: blur(14px);border:1px solid rgba(255,255,255,0.2);border: 2px solid #ffffff;width: 90%;max-width: 1000px; transition: all 0.3s ease;}
-h1{font-size:32px;margin-bottom:10px;}
-button{padding:12px 25px;border:none;border-radius:8px;background:#00b894;color:white;font-weight:700;cursor:pointer;transition:0.2s;box-shadow:0 0 10px rgba(0,255,180,0.5);}
+#container{position:relative;width:100%;max-width:1400px;height:100%;display:flex;align-items:center;justify-content:center;}
+/* === Spillerliste === */
+#playerList{position:absolute;left:60px;top:19%;width:220px;background:rgba(255,255,255,0.08);border-radius:10px;padding:15px;box-shadow:0 0 20px rgba(0,0,0,0.5);backdrop-filter:blur(8px);max-height:70vh;overflow-y:auto;border:1px solid rgba(255,255,255,0.2);border: 2px solid #ffffff;}
+#playerList h2{margin-top:0;text-align:center;font-size:18px;color:white;text-shadow:0 0 6px rgba(255,255,255,0.2);}
+#playerList p{margin:6px 0;font-size:15px;color:white;}
+/* === Spillet === */
+#main{background:rgba(255,255,255,0.08);padding:70px 100px;border-radius:20px;text-align:center;box-shadow:0 0 25px rgba(0,0,0,0.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);border: 2px solid #ffffff;}
+#main h1{font-size:38px;margin-bottom:10px;color:white;text-shadow:0 0 6px rgba(255,255,255,0.2);}
+#main h3{font-size:22px;margin-top:0;color:white;}
+#dice{font-size:180px;margin:40px;cursor:pointer;transition:transform 0.2s ease, color 0.2s ease, text-shadow 0.2s ease;}
+#dice:hover{transform:scale(1.05);}
+#dice:active{transform:scale(0.9);}
+#results{margin-top:25px;font-size:22px;color:white;}
+button{padding:12px 30px;border:none;border-radius:8px;background:#00b894;color:white;font-weight:700;cursor:pointer;transition:0.2s;box-shadow:0 0 10px rgba(0,255,180,0.5);}
 button:hover{opacity:0.9;transform:scale(1.03);}
-textarea{width:90%;max-width:500px;height:80px;border-radius:6px;padding:10px;font-size:15px;resize:none;}
-label{display:block;margin-top:15px;margin-bottom:8px;}
-select{padding:8px;border-radius:6px;margin-bottom:10px;}
-#resultText,#storyText{white-space:pre-line;}
 .same-size {width:150px; height:32px; border:none; border-radius:6px;background:#00b894; color:white; font-size:14px; text-align:center; box-sizing:border-box;margin:6px; padding:4px 10px; cursor:pointer;transition:all 0.2s ease; font-weight:600;box-shadow:0 0 6px rgba(0,255,180,0.35);}
 .same-size:hover {transform:scale(1.05); background:#00d4a1;}
 .same-size:disabled {background:#555; color:#ccc; cursor:not-allowed; box-shadow:none;}
-body.dark{background:#000!important;color:white;}
-body.halloween{background:radial-gradient(circle at center,#1a0008 0%,#000 100%);color:#ffb84d}
-body.halloween #main{background:rgba(40,0,20,.9);border:2px solid #ff6600;box-shadow:0 0 25px #ff6600}
+body.dark { background: #000 !important; color: white; }
+@keyframes glowPulse{0%{text-shadow:none;}50%{text-shadow:0 0 20px #00ffcc;}100%{text-shadow:none;}}
 @media(max-width:900px){body{flex-direction:column;height:auto;padding:20px;}#main{max-width:100%;padding:40px;}}
 </style>
 <button id="themeToggle" class="same-size" style="position:absolute;top:25px;right:40px;">🌙 Mørk tilstand</button>
 </head>
 <body>
-<div id="main">
-  <h1>Sandt eller Falsk</h1>
-  <p id="roundStatus"></p>
-
-  <div id="myTurn" style="display:none;">
-    <p>Skriv en kort historie:</p>
-    <textarea id="storyInput"></textarea><br>
-    <label>Er den sand eller falsk?</label><br>
-    <select id="truthSelect">
-      <option value="true">Sand</option>
-      <option value="false">Falsk</option>
-    </select><br><br>
-    <button class="same-size" onclick="submitStory()">Send historie</button>
+<div id="container">
+  <div id="playerList"><h2>Spillere</h2><div id="players"></div></div>
+  <div id="main">
+    <h1>🎲 Terningkast</h1>
+    <div id="dice" onclick="rollDice()">🎲</div>
+    <div id="results"></div>
+    <button class="same-size" onclick="resetGame()">🔄 Nulstil spil</button>
+    <button class="same-size" onclick="backToLobby()">⬅️ Tilbage til lobby</button>
   </div>
-
-  <div id="guessTurn" style="display:none;">
-    <p id="storyText"></p>
-    <button class="same-size" onclick="submitGuess(true)">Sandt</button>
-    <button class="same-size" onclick="submitGuess(false)">Falsk</button>
-  </div>
-
-  <div id="waitTurn" style="display:none;">
-    <p id="waitMessage">⏳ Vent på din tur...</p>
-  </div>
-
-  <div id="roundResult" style="display:none;">
-    <p id="resultText"></p>
-  </div>
-
-  <div id="truthScoreboard"></div>
-  <br>
-  <button class="same-size" onclick="backToLobby()">⬅️ Tilbage til lobby</button>
 </div>
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-import {getDatabase,ref,set,update,onValue,get,remove,onDisconnect} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+import {getDatabase,ref,update,onValue,get,remove,set} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
 
-// === Firebase config ===
-const firebaseConfig={apiKey:"AIzaSyBJPveZ_kuPqB2GCfFuDuYgrUjlxtHaq5w",authDomain:"lobby-dc329.firebaseapp.com",databaseURL:"https://lobby-dc329-default-rtdb.europe-west1.firebasedatabase.app",projectId:"lobby-dc329",storageBucket:"lobby-dc329.firebasestorage.app",messagingSenderId:"244192634791",appId:"1:244192634791:web:c527a06b7d88b5782eb882"};
-const app=initializeApp(firebaseConfig);
-const db=getDatabase(app);
+// === Samme database som Lobby ===
+const firebaseConfig = {
+  apiKey: "AIzaSyBJPveZ_kuPqB2GCfFuDuYgrUjlxtHaq5w",
+  authDomain: "lobby-dc329.firebaseapp.com",
+  databaseURL: "https://lobby-dc329-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "lobby-dc329",
+  storageBucket: "lobby-dc329.firebasestorage.app",
+  messagingSenderId: "244192634791",
+  appId: "1:244192634791:web:c527a06b7d88b5782eb882"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
 // === Tema ===
-document.addEventListener("DOMContentLoaded", () => {
-  const body = document.body;
+const themeToggle=document.getElementById("themeToggle");
+const body=document.body;
+themeToggle.addEventListener("click",()=>{body.classList.toggle("dark");themeToggle.textContent=body.classList.contains("dark")?"☀️ Lys tilstand":"🌙 Mørk tilstand";});
 
-  // === DARK MODE KNAP ===
-  const themeToggle = document.createElement("button");
-  themeToggle.id = "themeToggle";
-  themeToggle.className = "same-size";
-  themeToggle.textContent = "🌙 Mørk tilstand";
-  Object.assign(themeToggle.style, {
-    position: "absolute",
-    top: "25px",
-    right: "40px",
-    height: "34px",
-    width: "150px",
-    fontWeight: "600"
-  });
-  document.body.appendChild(themeToggle);
+// Hent gameId og playerId fra URL
+const urlParams = new URLSearchParams(window.location.search);
+const gameId = urlParams.get("gameId");
+const playerId = urlParams.get("playerId");
 
-  themeToggle.addEventListener("click", () => {
-    // Hvis Halloween er aktiv, gør ingenting
-    if (body.classList.contains("halloween")) return;
+let isHost = false;
 
-    body.classList.toggle("dark");
-    themeToggle.textContent = body.classList.contains("dark")
-      ? "☀️ Lys tilstand"
-      : "🌙 Mørk tilstand";
-  });
+let playerName = sessionStorage.getItem("playerName");
 
-  // === SÆSON-KNAP (Halloween) ===
-  const today = new Date();
-  const m = today.getMonth() + 1;
-  const d = today.getDate();
+if (!playerName) {
+  playerName = "Ukendt spiller";
+}
 
-  const seasonButton = document.createElement("button");
-  seasonButton.id = "seasonButton";
-  seasonButton.className = "same-size";
-  Object.assign(seasonButton.style, {
-    position: "absolute",
-    top: "25px",
-    right: "210px",
-    height: "34px",
-    width: "150px",
-    fontWeight: "600",
-    display: "none"
-  });
-  document.body.appendChild(seasonButton);
+const gameRef = ref(db, "games/" + gameId);
+const playersRef = ref(db, "games/" + gameId + "/players");
+const resultsRef = ref(db, "games/" + gameId + "/results");
+const resetVotesRef = ref(db, "games/" + gameId + "/resetVotes");
 
-  // Kun aktiv i oktober / start november
-  const showHalloween = (m === 10) || (m === 11 && d <= 10);
-  if (!showHalloween) return;
+let hasRolled = false;
 
-  seasonButton.style.display = "block";
-  seasonButton.textContent = "🎃 Aktiver";
-  seasonButton.style.background = "#8b0000";
-  seasonButton.style.color = "#fff4e0";
-  seasonButton.style.boxShadow = "0 0 12px #ff6600";
-  seasonButton.style.border = "2px solid #ff6600";
+console.log("🔹 Forbinder til spil:", gameId, "som", playerId);
 
-  let wasDarkBeforeHalloween = false;
-
-  seasonButton.addEventListener("click", () => {
-    const active = body.classList.toggle("halloween");
-
-    if (active) {
-      // Husk dark mode-status og slå den midlertidigt fra
-      wasDarkBeforeHalloween = body.classList.contains("dark");
-      body.classList.remove("dark");
-      console.log("🎃 Halloween aktiveret – dark mode gemt som:", wasDarkBeforeHalloween);
-    } else {
-      // Gendan tidligere tilstand
-      if (wasDarkBeforeHalloween) {
-        body.classList.add("dark");
-        console.log("🌙 Gendanner Dark mode");
-      } else {
-        body.classList.remove("dark");
-        console.log("☀️ Gendanner Lys tilstand");
-      }
+import {onDisconnect} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+async function ensurePlayerExists() {
+  const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
+  const snap = await get(playerRef);
+  if (!snap.exists()) {
+    console.log("🆕 Tilføjer spilleren:", playerName);
+    await set(playerRef, { name: playerName, ready: true });
+  } else {
+    const data = snap.val();
+    if (!data.name) {
+      await update(playerRef, { name: playerName });
     }
+  }
+  onDisconnect(playerRef).remove();
+}
+ensurePlayerExists();
 
-    // Opdater Halloween-knap
-    seasonButton.textContent = active ? "🎃 Deaktiver" : "🎃 Aktiver";
-    seasonButton.style.background = active ? "#ff6600" : "#8b0000";
+// === Vis spillere ===
+onValue(playersRef, (snap) => {
+  const players = snap.val() || {};
+  let html = "";
+  for (const [pid, p] of Object.entries(players)) {
+    // Hvis det er dig selv, så tilføj (dig)
+    const you = pid === playerId ? " <span style='opacity:0.8;'>(dig)</span>" : "";
+    html += `<p id="pl_${pid}">${p.name}${you}: 🎲</p>`;
+  }
+  document.getElementById("players").innerHTML = html;
+});
+
+
+// === Lyt efter resultater ===
+onValue(resultsRef, (snap) => {
+  const data = snap.val() || {};
+  for (const [pid, res] of Object.entries(data)) {
+    const pElem = document.getElementById("pl_" + pid);
+    if (pElem) {
+      const baseText = pElem.textContent.split(":")[0]; 
+      pElem.innerHTML = `${baseText}: 🎲 <strong>${res.value}</strong>`;
+    }
+  }
+
+  // === Find vinder ===
+  const allPlayers = Object.keys(data);
+  get(playersRef).then((psnap) => {
+    const total = Object.keys(psnap.val() || {}).length;
+    if (allPlayers.length === total && total > 0) {
+      let winner = Object.values(data).reduce((a, b) => (a.value > b.value ? a : b));
+      document.getElementById("results").innerHTML = `<h3>🏆 Vinderen er ${winner.name}! (🎲 <strong>${winner.value}</strong>)</h3>`;
+    }
   });
 });
 
-// === Hent parametre ===
-const urlParams=new URLSearchParams(window.location.search);
-const gameId=urlParams.get("gameId");
-const playerId=urlParams.get("playerId");
-let playerName=sessionStorage.getItem("playerName")||"Ukendt spiller";
-const gameRef=ref(db,"games/"+gameId);
-const playersRef=ref(db,"games/"+gameId+"/players");
-
-let currentTurn=null;
-const DEFAULT_ROUNDS=3;
-const NEXT_ROUND_DELAY=5;
-
-// === Debug info ===
-console.log("🆕 Tilføjer spilleren:", playerName);
-console.log("🔹 Forbinder til spil:", gameId, "som", playerId);
-
-// === Sørg for at spilleren findes ===
-async function ensurePlayerExists() {
-  try {
-    const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
-    const snap = await get(playerRef);
-
-    if (!snap.exists()) {
-      await set(playerRef, { name: playerName, ready: true, score: 0 });
-    } else if (!snap.val().name) {
-      await update(playerRef, { name: playerName });
-    }
-
-    onDisconnect(playerRef).remove();
-  } catch (err) {
-    console.error("⚠️ Fejl i ensurePlayerExists:", err);
-  }
-}
-
-// === Start spil ===
-(async () => {
-  await ensurePlayerExists();
-
-  onValue(gameRef, snap => {
-    const game = snap.val();
-    if (!game) return;
-    if (!game.turn) initGameTurn();
-    updateUI(game);
+// === Slå terning ===
+window.rollDice = async function () {
+  if (hasRolled) return;
+  hasRolled = true;
+  const roll = Math.floor(Math.random() * 6) + 1;
+  const dice = document.getElementById("dice");
+  dice.style.animation = "glowPulse 0.6s ease";
+  setTimeout(() => (dice.style.animation = ""), 600);
+  dice.innerText = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"][roll - 1];
+  await update(ref(db, "games/" + gameId + "/results/" + playerId), {
+    name: playerName,
+    value: roll
   });
-})();
-
-async function initGameTurn(){
-  const psnap=await get(playersRef);const players=psnap.val()||{};
-  const ids=Object.keys(players);
-  const host=ids[0]; // første spiller starter
-  await update(gameRef,{turn:host,round:{story:null,guesses:{},result:null},roundCount:0});
-}
-
-function updateUI(game){
-  if(game.status==="slut"){showWinner(game);return;}
-  currentTurn=game.turn;const round=game.round||{};
-  document.getElementById("roundStatus").innerText="Runde "+((game.roundCount||0)+1)+" af "+DEFAULT_ROUNDS;
-
-  if(currentTurn===playerId&&!round.story){showSection("myTurn");}
-  else if(round.story&&!round.result){
-    if(playerId!==currentTurn&&!(round.guesses&&round.guesses[playerId])){
-      document.getElementById("storyText").innerText=round.story;showSection("guessTurn");
-    }else if(playerId!==currentTurn){showSection("waitTurn");}
-  }else if(round.result){document.getElementById("resultText").innerText=round.result;showSection("roundResult");}
-  else{showSection("waitTurn");}
-  updateScoreboard(game.players);
-}
-
-function showSection(id){
-  ["myTurn","guessTurn","waitTurn","roundResult"].forEach(s=>{
-    document.getElementById(s).style.display=(s===id)?"block":"none";
-  });
-}
-
-window.submitStory=function(){
-  const story=document.getElementById("storyInput").value.trim();
-  const truth=document.getElementById("truthSelect").value==="true";
-  if(!story)return;
-  update(gameRef,{round:{story,correct:truth,guesses:{},storyteller:playerId}});
-  document.getElementById("storyInput").value="";
-  showSection("waitTurn");
 };
 
-window.submitGuess=function(choice){
-  update(ref(db,"games/"+gameId+"/round/guesses"),{[playerId]:choice});
-  checkRoundEnd();
+// === Nulstil spil ===
+window.resetGame = async function() {
+  const voteRef = ref(db, `games/${gameId}/resetVotes/${playerId}`);
+  await set(voteRef, true); // marker spillerens stemme
+
+  const votesSnap = await get(resetVotesRef);
+  const playersSnap = await get(playersRef);
+  const votes = votesSnap.val() || {};
+  const players = playersSnap.val() || {};
+
+  const votedCount = Object.keys(votes).length;
+  const playerCount = Object.keys(players).length;
+  const remaining = playerCount - votedCount;
+
+  // 🔹 Hvis der mangler spillere, vis status
+  if (remaining > 0) {
+    document.getElementById("results").innerHTML = `⏳ Venter på ${remaining} spiller${remaining === 1 ? "" : "e"}...`;
+  } else {
+    // 🔹 Når alle har stemt, nulstil resultater og stemmer
+    await remove(ref(db, `games/${gameId}/results`));
+    await remove(ref(db, `games/${gameId}/resetVotes`));
+
+    // 🔹 Opdater interface hos alle
+    await update(gameRef, { resetTrigger: Date.now() });
+  }
 };
 
-async function checkRoundEnd(){
-  const snap=await get(gameRef);const game=snap.val();if(!game||!game.round)return;
-  const players=game.players||{};const guesses=game.round.guesses||{};
-  const totalPlayers=Math.max(0,Object.keys(players).length-1);
-  if(Object.keys(guesses).length===totalPlayers){
-    let resultText="Historien var "+(game.round.correct?"Sand ✅":"Falsk ❌")+"\n";let updates={};
-    for(const pid in guesses){const guess=guesses[pid];
-      if(guess===game.round.correct){updates[pid]=(players[pid].score||0)+1;resultText+=players[pid].name+" gættede rigtigt! +1p\n";}
-      else{resultText+=players[pid].name+" gættede forkert.\n";}}
-    for(const pid in updates){update(ref(db,"games/"+gameId+"/players/"+pid),{score:updates[pid]});}
-    update(ref(db,"games/"+gameId+"/round"),{result:resultText});
-    setTimeout(nextTurn,NEXT_ROUND_DELAY*1000);
+// === Lyt efter nulstilling (automatisk reset for alle) ===
+onValue(ref(db, `games/${gameId}/resetTrigger`), (snap) => {
+  if (snap.exists()) {
+    // ryd lokal status
+    hasRolled = false;
+    document.getElementById("results").innerHTML = "";
+    document.getElementById("dice").innerText = "🎲";
+
+    // nulstil spilleres visning
+    const playerElems = document.querySelectorAll("#players p");
+    playerElems.forEach(p => {
+      const baseText = p.textContent.split(":")[0];
+      p.innerHTML = `${baseText}: 🎲`;
+    });
   }
-}
+});
 
-async function nextTurn(){
-  const snap=await get(gameRef);const game=snap.val();if(!game)return;
-  const players=game.players||{};const ids=Object.keys(players);
-  const curIndex=ids.indexOf(currentTurn);const nextIndex=(curIndex+1)%ids.length;
-  let newRound=game.roundCount||0;if(nextIndex===0)newRound++;
-  if(newRound>=DEFAULT_ROUNDS){
-    let ranking=Object.values(players).map(p=>({name:p.name,score:p.score||0})).sort((a,b)=>b.score-a.score);
-    let resultHtml="🏆 Slutresultat<br>";ranking.forEach((p,i)=>{resultHtml+=(i+1)+". "+p.name+" – "+p.score+" point<br>";});
-    update(gameRef,{status:"slut",finalResult:resultHtml});return;
-  }
-  update(gameRef,{turn:ids[nextIndex],round:{story:null,guesses:{},result:null},roundCount:newRound});
-}
 
-function updateScoreboard(players){
-  let html="<h3>Scoreboard</h3>";
-  Object.values(players||{}).forEach(p=>{html+=`<p>${p.name}: ${p.score||0}p</p>`;});
-  document.getElementById("truthScoreboard").innerHTML=html;
-}
-
-function showWinner(game){
-  document.getElementById("main").innerHTML="<h2>"+game.finalResult+"</h2><button onclick='backToLobby()'>⬅️ Tilbage til lobby</button>";
-}
-
+// === Tilbage til lobby ===
 window.backToLobby = async function () {
   const playerRef = ref(db, "games/" + gameId + "/players/" + playerId);
   const playerResultRef = ref(db, "games/" + gameId + "/results/" + playerId);
@@ -303,6 +222,7 @@ window.backToLobby = async function () {
 </script>
 </body>
 </html>
+
 
 
 
