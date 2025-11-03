@@ -37,23 +37,23 @@ body.dark { background: #000 !important; color: white; }
   #playerList, #chat {width: 100% !important; height: auto !important; border: none !important; border-top: 1px solid rgba(255,255,255,0.2) !important;}
   #main {padding: 10px !important; width: 100% !important;}
   #chatInput {flex-direction: column !important;}
-  #chatInput input, #chatInput button, .same-size, .same-size-input, button {
+
+  /* 🔹 Gør knapper og felter store på mobil */
+  .same-size, .same-size-input, #chatInput input, #chatInput button, button, select, input {
     width: 100% !important;
     height: 60px !important;
     font-size: 20px !important;
     margin: 8px 0 !important;
     border-radius: 10px !important;
-    box-sizing: border-box;
+    box-sizing: border-box !important;
   }
-  input, select {
-    font-size: 20px !important;
-    height: 55px !important;
-    padding: 10px 14px !important;
-    width: 100% !important;
-  }
-  h1 {font-size: 1.6em !important; margin-top: 10px !important;}
+
+  /* 🔹 Gør teksten i chat og spillerliste større */
+  #chatMessages p, #playerList, h1, h2, h3 {font-size: 18px !important;}
+  
   #themeToggle {top: 10px !important; right: 10px !important; font-size: 16px !important; padding: 10px 14px !important;}
 }
+
 </style>
 </head>
 <body>
@@ -349,6 +349,7 @@ window.leaveGame = async function() {
 </script>
 </body>
 </html>
+
 
 
 
