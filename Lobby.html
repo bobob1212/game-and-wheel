@@ -286,7 +286,7 @@ function listenLobby() {
     document.getElementById("playerList").innerHTML = html;
 
     const playerCount = Object.keys(players).length;
-    const canStart = (playerCount >= 1 && allReady);
+    const canStart = (playerCount >= 2 && allReady);
     if (players[playerId]?.isHost)
       document.getElementById("startBtn").disabled = !canStart;
 
@@ -327,6 +327,7 @@ window.leaveGame = async function() {
 </script>
 </body>
 </html>
+
 
 
 
